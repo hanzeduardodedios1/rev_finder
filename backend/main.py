@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from router import router as motorcycle_router
 
 app = FastAPI()
 
@@ -13,6 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(motorcycle_router)
 class Item(BaseModel):
     name: str
     price: float
