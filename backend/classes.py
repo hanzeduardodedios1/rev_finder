@@ -14,6 +14,18 @@ class Motorcycle():
         return str(self.year) + self.make + self.model
 
 
+class MotorcycleSpecs():
+    def __init__(self, engineCC: int, seatHeight: float, engineType: str, cylinders: int, horsepower: float,
+                  torque: float, weight: float, fuelCapacity: float, mpg: float):
+        self.engineCC = engineCC
+        self.seatHeight = seatHeight
+        self.engineType = engineType
+        self.cylinders = cylinders
+        self.horsepower = horsepower
+        self.torque = torque
+        self.weight = weight
+        self.fuelCapacity = fuelCapacity
+        self.mpg = mpg
 
 class User():
     def __init__(self, name: str, email: str, phoneNo: int, MotoHistory: list, UserVerified: bool, riderLevel, passwordHash: str, isActive: bool):
@@ -35,3 +47,8 @@ class User():
     def markPurchased(self, motorcycle: Motorcycle):
         # Using the assumption that MotoHistory represents the motorcycles the user has marked as purchased
         self.MotoHistory.append(motorcycle)
+
+
+class Compairson():
+    
+        
