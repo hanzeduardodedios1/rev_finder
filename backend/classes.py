@@ -35,3 +35,44 @@ class User():
     def markPurchased(self, motorcycle: Motorcycle):
         # Using the assumption that MotoHistory represents the motorcycles the user has marked as purchased
         self.MotoHistory.append(motorcycle)
+
+class Purchase:
+    def __init__(self, user_id: uuid.UUID, motorcycle_id: uuid.UUID):
+        self.purchaseID = uuid.uuid1()
+        self.userID = user_id
+        self.motorcycleID = motorcycle_id
+        self.purchaseDate = datetime.datetime.now()
+        self.verified = False
+        self.created_at = datetime.datetime.now()
+
+    def verify_purchase(self):
+        self.verified = True
+
+
+class Favorite:
+    def __init__(self, user_id: uuid.UUID, motorcycle_id: uuid.UUID):
+        self.favoriteID = uuid.uuid1()
+        self.userID = user_id
+        self.motorcycleID = motorcycle_id
+        self.created_at = datetime.datetime.now()
+
+    def getMotorcycleID(self):
+        return self.motorcycleID
+
+
+class Review:
+    def __init__(self, 
+                 user_id: uuid.UUID, 
+                 motorcycle_id: uuid.UUID, 
+                 rating: int, 
+                 message: str = ""):
+        
+        self.reviewID = uuid.uuid1()
+        self.userID = user_id
+        self.motorcycleID = motorcycle_id
+        self.rating = rating
+        self.message = message
+        self.created_at = datetime.datetime.now()
+
+    def getRating(self):
+        return self.rating
