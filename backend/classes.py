@@ -76,7 +76,7 @@ class MotorcycleImage():
 
 class Motorcycle():
     def __init__(self, make: str, model: str, year: int, category: str, popularityScore: float):
-        self._motoID = uuid.uuid1()
+        self._motoID = uuid.uuid4()
         self.make = make
         self.model = model
         self.year = year
@@ -92,6 +92,9 @@ class Motorcycle():
     
     def addSpecs(self, specs: MotorcycleSpecs):
         self.specs = specs
+
+    def getMotoID(self):
+        return self._motoID
 
 
 class Comparison():
@@ -132,7 +135,15 @@ class Comparison():
         else:
             raise Exception("Motorcycle not found in comparison.")
         
-    def deleteComparison(self):
+    def getMotorcycles(self):
+        '''Returns the list of motorcycles currently in the comparison.'''
+        return self.motorcycles
+    
+    def getMotorcycleCount(self):
+        '''Returns the count of how many motorcycles are currently in the comparison.'''
+        return self.motorcycleCount
+        
+    def clearComparison(self):
         '''Deletes the entire comparison by resetting the motorcycle slots and count.'''
         self.motorcycles = [None, None]
         self.motorcycleCount = 0
@@ -250,11 +261,31 @@ class User():
         # Using the assumption that MotoHistory represents the motorcycles the user has marked as purchased
         self.MotoHistory.append(motorcycle)
 
-    def addComparison(self, comparison: Comparison):
+    def addComparisonHistory(self, comparison: Comparison):
         if self._comparisonHistory is None:
             self._comparisonHistory = []
         self._comparisonHistory.append(comparison)
-        
+
+    def deleteComparisonHistory(self, comparison: Comparison):
+        if self._comparisonHistory is not None and comparison in self._comparisonHistory:
+            self._comparisonHistory.remove(comparison)
+        else:
+            raise Exception("Comparison not found in history.")
+
+    def clearComparisonHistory(self):
+        self._comparisonHistory = []
+
+    def getComparisonHistory(self):
+        return self._comparisonHistory
+
+    def addMotorcycleToHistory(self, motorcycle: Motorcycle):
+        if self._MotoHistory is None:
+            self._MotoHistory = []
+        if motorcycle not in self._MotoHistory:
+            self._MotoHistory.append(motorcycle)
+        else:
+            raise Exception("Motorcycle already in history.")
+
 
 
 
