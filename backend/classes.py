@@ -12,9 +12,16 @@ class Motorcycle():
 
         # This will be used to store the specs of the motorcycle, which can be filled in later when the data is available
         self.specs = None
+        self.images = []
 
     def getFullName(self):
         return str(self.year) + self.make + self.model
+    
+
+class MotorcycleImage():
+    def __init__(self, imageURL: str, imageDescription: str):
+        self.imageURL = imageURL
+        self.imageDescription = imageDescription
 
 
 class MotorcycleSpecs():
