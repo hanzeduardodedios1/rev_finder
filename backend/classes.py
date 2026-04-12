@@ -1,28 +1,11 @@
 import uuid
 import datetime
 
-class Motorcycle():
-    def __init__(self, make: str, model: str, year: int, category: str, popularityScore: float):
-        self._motoID = uuid.uuid1()
-        self.make = make
-        self.model = model
-        self.year = year
-        self.category = category
-        self.popularityScore = popularityScore
-
-        # This will be used to store the specs of the motorcycle, which can be filled in later when the data is available
-        self.specs = None
-        self.images = []
-
-    def getFullName(self):
-        return str(self.year) + self.make + self.model
-    
-
-class MotorcycleImage():
-    def __init__(self, imageURL: str, imageDescription: str):
-        self.imageURL = imageURL
-        self.imageDescription = imageDescription
-
+class RiderLevel():
+    BEGINNER = 'Beginner'
+    CASUAL = 'Casual'
+    INTERMEDIATE = 'Intermediate'
+    ADVANCED = 'Advanced'
 
 class MotorcycleSpecs():
     def __init__(self, engineCC: float, seatHeight: float, engineType: str, cylinders: int, horsepower: float,
@@ -83,31 +66,35 @@ class MotorcycleSpecs():
             comfortScore += 1
         
         return comfortScore
+    
+
+class MotorcycleImage():
+    def __init__(self, imageURL: str, imageDescription: str):
+        self.imageURL = imageURL
+        self.imageDescription = imageDescription
 
 
-class User():
-    def __init__(self, name: str, email: str, phoneNo: int, MotoHistory: list, UserVerified: bool, riderLevel, passwordHash: str, isActive: bool):
-        self._userID = uuid.uuid1()
-        self._name = name
-        self._email = email
-        self._phoneNo = phoneNo
-        self._MotoHistory = MotoHistory
-        self._UserVerified = UserVerified
-        self._riderLevel = riderLevel
-        self._passwordHash = passwordHash
-        self._isActive = isActive
-        self._creationTime = datetime.now()
+class Motorcycle():
+    def __init__(self, make: str, model: str, year: int, category: str, popularityScore: float):
+        self._motoID = uuid.uuid1()
+        self.make = make
+        self.model = model
+        self.year = year
+        self.category = category
+        self.popularityScore = popularityScore
 
-    def requestVerification(self, method):
-        # Implement verification using external software?
-        pass
+        # This will be used to store the specs of the motorcycle, which can be filled in later when the data is available
+        self.specs = None
+        self.images = []
 
-    def markPurchased(self, motorcycle: Motorcycle):
-        # Using the assumption that MotoHistory represents the motorcycles the user has marked as purchased
-        self.MotoHistory.append(motorcycle)
+    def getFullName(self):
+        return str(self.year) + self.make + self.model
+    
+    def addSpecs(self, specs: MotorcycleSpecs):
+        self.specs = specs
 
 
-class Compairson():
+class Comparison():
     def __init__(self, motorcycle1: Motorcycle = None, motorcycle2: Motorcycle = None, count: int = 0):
         '''Initializes a comparison object with two motorcycle slots and a count of how many motorcycles are currently in the comparison. The comparison ID is generated using uuid4 for uniqueness, and the creation time is recorded.'''
         self._comparisonID = uuid.uuid4()
@@ -239,4 +226,36 @@ class Compairson():
         '''Compares the number of gears in the gearbox of the two motorcycles and returns the result using the returnComparison method.'''
         comp_value = self.findGreaterValue(self.motorcycles[0].specs.gearbox, self.motorcycles[1].specs.gearbox)
         return self.returnComparison(comp_value, [self.motorcycles[0].specs.gearbox, self.motorcycles[1].specs.gearbox])
+
+
+class User():
+    def __init__(self, name: str, email: str, phoneNo: int, MotoHistory: list, UserVerified: bool, riderLevel, passwordHash: str, isActive: bool, comparisonHistory: list = None):
+        self._userID = uuid.uuid4()
+        self._name = name
+        self._email = email
+        self._phoneNo = phoneNo
+        self._MotoHistory = MotoHistory
+        self._UserVerified = UserVerified
+        self._riderLevel = riderLevel
+        self._passwordHash = passwordHash
+        self._isActive = isActive
+        self._creationTime = datetime.now()
+        self._comparisonHistory = comparisonHistory
+
+    def requestVerification(self, method):
+        # Implement verification using external software?
+        pass
+
+    def markPurchased(self, motorcycle: Motorcycle):
+        # Using the assumption that MotoHistory represents the motorcycles the user has marked as purchased
+        self.MotoHistory.append(motorcycle)
+
+    def addComparison(self, comparison: Comparison):
+        if self._comparisonHistory is None:
+            self._comparisonHistory = []
+        self._comparisonHistory.append(comparison)
+        
+
+
+
     
