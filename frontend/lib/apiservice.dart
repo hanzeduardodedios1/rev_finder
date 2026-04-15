@@ -3,19 +3,19 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   // Hugging Face URL
-  final String baseUrl = 'https://hanweirdo-rev-finder-api.hf.space';
+  //final String baseUrl = 'https://hanweirdo-rev-finder-api.hf.space';
+  final String baseUrl = 'http://127.0.0.1:8000';
   
   Future<dynamic> fetchData(String endpoint) async {
-    // 1. Build URL
+    // URL Construction
     final url = Uri.parse('$baseUrl$endpoint');
 
     try {
-      // 2. Make Request
+      // Make Request
       final response = await http.get(url);
 
-      // 3. Handle Responses
       if (response.statusCode == 200) {
-        // Successfully fetched data, return the decoded JSON payload
+        // Successful API response, return JSON data
         return jsonDecode(response.body);
       } else if (response.statusCode == 404) {
         throw Exception("Resource not found.");
@@ -23,7 +23,7 @@ class ApiService {
         throw Exception("Server Error: ${response.statusCode}");
       }
     } catch (e) {
-      // 4. Handle Network/Connection Errors
+      // Handle any network or connection errors
       throw Exception("Connection Failed: $e");
     }
   }
