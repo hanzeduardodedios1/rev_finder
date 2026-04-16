@@ -17,9 +17,9 @@ class MotorcycleCategory():
 
 class MotorcycleSpecs():
     def __init__(self, engineCC: float, seatHeight: float, engineType: str, cylinders: int, horsepower: float,
-                torque: float, weight: float, fuelCapacity: float, mpg: float, coolingSystem: str, gearbox: int,
-                clutchType: str, frame: str, frontBreakType: str, rearBreakType: str, frontSuspension: str, 
-                rearSuspension: str, topSpeed: float):
+                 torque: float, weight: float, fuelCapacity: float, mpg: float, coolingSystem: str, gearbox: int,
+                 clutchType: str, frame: str, frontBreakType: str, rearBreakType: str, frontSuspension: str, 
+                 rearSuspension: str, topSpeed: float):
         '''Initializes a MotorcycleSpecs object with the given specifications. This class is used to store detailed information about a motorcycle's specifications, which can be used for comparisons and calculations related to performance and comfort. Each attribute corresponds to a specific aspect of the motorcycle's design and capabilities.'''
         
         self.engineCC = engineCC
@@ -187,7 +187,7 @@ class Comparison():
         self._comparisonID = uuid.uuid4()
         self.motorcycles = [motorcycle1, motorcycle2]
         self.motorcycleCount = count
-        self._creationTime = datetime.now()
+        self._creationTime = datetime.datetime.now()
 
     def getComparisonID(self):
         '''Returns the unique ID of the comparison.'''
@@ -335,7 +335,7 @@ class User():
         self._riderLevel = riderLevel
         self._passwordHash = passwordHash
         self._isActive = isActive
-        self._creationTime = datetime.now()
+        self._creationTime = datetime.datetime.now()
         self._comparisonHistory = comparisonHistory
 
     def requestVerification(self, method):
@@ -376,7 +376,43 @@ class User():
         else:
             raise Exception("Motorcycle already in history.")
 
+class Purchase:
+    def __init__(self, user_id: uuid.UUID, motorcycle_id: uuid.UUID):
+        self.purchaseID = uuid.uuid1()
+        self.userID = user_id
+        self.motorcycleID = motorcycle_id
+        self.purchaseDate = datetime.datetime.now()
+        self.verified = False
+        self.created_at = datetime.datetime.now()
+
+    def verify_purchase(self):
+        self.verified = True
 
 
+class Favorite:
+    def __init__(self, user_id: uuid.UUID, motorcycle_id: uuid.UUID):
+        self.favoriteID = uuid.uuid1()
+        self.userID = user_id
+        self.motorcycleID = motorcycle_id
+        self.created_at = datetime.datetime.now()
 
-    
+    def getMotorcycleID(self):
+        return self.motorcycleID
+
+
+class Review:
+    def __init__(self, 
+                 user_id: uuid.UUID, 
+                 motorcycle_id: uuid.UUID, 
+                 rating: int, 
+                 message: str = ""):
+        
+        self.reviewID = uuid.uuid1()
+        self.userID = user_id
+        self.motorcycleID = motorcycle_id
+        self.rating = rating
+        self.message = message
+        self.created_at = datetime.datetime.now()
+
+    def getRating(self):
+        return self.rating
