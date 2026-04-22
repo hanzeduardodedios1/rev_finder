@@ -131,6 +131,7 @@ class MotorcycleSpecs():
     def calcComfortScore(self):
         '''Calculate a comfort score based on various factors such as mpg, fuel capacity, gearbox, suspension score, clutch type, weight, and seat height. The formula combines these factors with specific weights to produce a comfort score that reflects the overall comfort of the motorcycle. The clutch type is scored based on the presence of certain keywords that indicate more advanced clutch systems. The final score is rounded to two decimal places for consistency.'''
         clutch_score = 0
+        ideal_seat_height = 31.0  # Assuming an ideal seat height of 30 inches for comfort scoring
         if "slipper" in self.clutchType.lower():
             clutch_score += 3
         if "assist" in self.clutchType.lower():
@@ -141,7 +142,7 @@ class MotorcycleSpecs():
         comfort_score = (
             (self.mpg * 0.30) + (self.fuelCapacity * 1.5) + (self.gearbox * 1.0) +
             self.calcSuspensionScore() + clutch_score - (self.weight * 0.03) - 
-            (abs(self.seatHeight - self.ideal_seat_height) * 1.5)
+            (abs(self.seatHeight - ideal_seat_height) * 1.5)
         )
 
         return round(comfort_score, 2)
