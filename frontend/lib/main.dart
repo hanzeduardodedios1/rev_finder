@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'motorcycle.dart';
 import 'apiservice.dart';
+import 'comparison.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,7 +15,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'RevFinder',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 34, 8, 78)),
       ),
       home: const SearchPage(),
       debugShowCheckedModeBanner: false,
@@ -33,6 +34,16 @@ class _SearchPageState extends State<SearchPage> {
   // Handle memory for comparison (store a motorcycle object here)
   List<Motorcycle> selectedBikes = [];
   final ApiService _apiService = ApiService();
+
+  Comparison? get currentComparison {
+    if (selectedBikes.length == 2) {
+      return Comparison(
+        bike1: selectedBikes[0],
+        bike2: selectedBikes[1],
+      );
+    }
+    return null;
+  }
 
   String _normalizeForMatch(String value) {
     return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
@@ -173,9 +184,9 @@ class _SearchPageState extends State<SearchPage> {
                                             ),
                                   );
 
-                                  // Add if new and less than 3 bikes selected
+                                  // Add if new and less than 2 bikes selected
                                   if (!alreadyExists &&
-                                      selectedBikes.length < 3) {
+                                      selectedBikes.length < 2) {
                                     selectedBikes.add(hydratedBike);
                                   }
                                 });
@@ -192,6 +203,23 @@ class _SearchPageState extends State<SearchPage> {
                         }
                       },
                 ),
+                if (selectedBikes.length == 2)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final comparison = currentComparison;
+                      if (comparison == null) return;
+
+                      showDialog(
+                        context: context,
+                        builder: (_) => _buildComparisonDialog(comparison),
+                      );
+                    },
+                    icon: const Icon(Icons.compare_arrows),
+                    label: const Text('Compare Motorcycles'),
+                  ),
+                ),
                 const SizedBox(height: 40),
                 // COMPARISON UI
                 _buildComparisonSection(),
@@ -204,12 +232,68 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  Widget _buildComparisonDialog(Comparison comparison) {
+    return AlertDialog(
+      title: const Text('Motorcycle Comparison'),
+      content: SizedBox(
+        width: 700,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${comparison.bike1.make} ${comparison.bike1.model}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    '${comparison.bike2.make} ${comparison.bike2.model}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(),
+            ...comparison.comparisonRows.map((row) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        row['label']!,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(flex: 3, child: Text(row['bike1']!)),
+                    Expanded(flex: 3, child: Text(row['bike2']!)),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
   // COMPARISON
   Widget _buildComparisonSection() {
     if (selectedBikes.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(20.0),
-        child: Text('Search and select up to 3 motorcycles to compare.'),
+        child: Text('Search and select 2 motorcycles to compare.'),
       );
     }
 
