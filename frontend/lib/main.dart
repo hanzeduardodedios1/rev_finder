@@ -3,17 +3,15 @@
 // Main Flutter UI for RevFinder.
 //
 // Updated behavior:
+// - Website now uses dark mode.
+// - Search bar, cards, dialog, and text colors adapt to the dark theme.
 // - When a user selects a motorcycle, the card only shows the main specs.
 // - The full expanded specs only appear when the user presses
 //   the "Compare Motorcycles" button.
-// - This keeps the first result view cleaner and makes the comparison dialog
-//   the place for detailed analysis.
-//
-// Important fix:
-// - The backend may return either a List of motorcycles OR a single JSON object.
-// - The previous version only handled List responses.
-// - This version handles both List and Map responses so parsed values and
-//   backend-calculated scores can reach the frontend.
+// - The comparison dialog shows green styling for better numeric values
+//   and red styling for worse numeric values.
+// - For inverse rows like weight and seat height, lower values show
+//   as green negative differences.
 
 import 'package:flutter/material.dart';
 
@@ -33,11 +31,44 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'RevFinder',
+
+      // Light theme is still defined in case you want to switch later.
       theme: ThemeData(
+        brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color.fromARGB(255, 34, 8, 78),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: Colors.white,
+        cardColor: Colors.white,
+      ),
+
+      // Dark theme used by the app.
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 120, 82, 255),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        cardColor: const Color(0xFF1E1E1E),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Color(0xFF1E1E1E),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color.fromARGB(255, 120, 82, 255),
+            foregroundColor: Colors.white,
+          ),
         ),
       ),
+
+      // Forces dark mode.
+      //
+      // Change this to ThemeMode.system if you want the app to follow
+      // the user's device/browser theme setting.
+      themeMode: ThemeMode.dark,
+
       home: const SearchPage(),
       debugShowCheckedModeBanner: false,
     );
@@ -78,12 +109,6 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   // Picks the best matching full-spec result from the specs endpoint.
-  //
-  // This version accepts both:
-  // - Map<String, dynamic>
-  // - generic Map values
-  //
-  // This prevents Flutter from skipping valid backend JSON objects.
   Motorcycle _pickBestSpecMatch(
     List<dynamic> specsData,
     Motorcycle selectedSuggestion,
@@ -123,15 +148,6 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   // Fetches the full specs for a selected motorcycle.
-  //
-  // Important:
-  // The backend may return either:
-  // 1. A List of motorcycle JSON objects
-  // 2. A single motorcycle JSON object as a Map
-  //
-  // The previous version only handled List responses.
-  // If the backend returned a Map, Flutter ignored it and kept the original
-  // search result, which caused parsed values and scores to stay null.
   Future<Motorcycle> _fetchHydratedMotorcycle(
     Motorcycle selectedSuggestion,
   ) async {
@@ -166,9 +182,94 @@ class _SearchPageState extends State<SearchPage> {
     return selectedSuggestion;
   }
 
+  // Builds one value inside the comparison dialog.
+  //
+  // Numeric comparison rows show:
+  // - green styling if this motorcycle has the better value
+  // - red styling if this motorcycle has the worse value
+  // - gray Equal label if both values are equal
+  //
+  // For normal rows, higher is better:
+  //   better value = green up arrow with +difference
+  //
+  // For inverse rows like weight and seat height, lower is better:
+  //   better value = green down arrow with -difference
+  Widget _buildComparisonValue({
+    required String value,
+    required ComparisonResult result,
+    required String differenceText,
+    required bool lowerIsBetter,
+  }) {
+    if (result == ComparisonResult.none) {
+      return Text(value);
+    }
+
+    if (result == ComparisonResult.equal) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value),
+          const SizedBox(height: 2),
+          const Text(
+            'Equal',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // In comparison.dart, ComparisonResult.higher means this row's value
+    // should be treated as the better value. For inverse rows, that better
+    // value is actually the lower numeric value.
+    final isBetter = result == ComparisonResult.higher;
+
+    final color = isBetter ? Colors.greenAccent : Colors.redAccent;
+
+    final icon = lowerIsBetter
+        ? (isBetter ? Icons.arrow_downward : Icons.arrow_upward)
+        : (isBetter ? Icons.arrow_upward : Icons.arrow_downward);
+
+    final prefix = lowerIsBetter
+        ? (isBetter ? '-' : '+')
+        : (isBetter ? '+' : '-');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 16,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '$prefix$differenceText',
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       body: SingleChildScrollView(
         child: Center(
           child: ConstrainedBox(
@@ -178,12 +279,13 @@ class _SearchPageState extends State<SearchPage> {
               children: [
                 const SizedBox(height: 40),
 
-                const Text(
+                Text(
                   'RevFinder',
                   style: TextStyle(
                     fontSize: 48.0,
                     fontWeight: FontWeight.bold,
                     letterSpacing: -1.0,
+                    color: colorScheme.onSurface,
                   ),
                 ),
 
@@ -192,11 +294,23 @@ class _SearchPageState extends State<SearchPage> {
                 // Search bar that gets motorcycle suggestions from the backend.
                 SearchAnchor.bar(
                   barHintText: 'Search make, model, or year ...',
-                  barLeading: const Icon(Icons.search),
-                  barBackgroundColor: const WidgetStatePropertyAll(
-                    Colors.white,
+                  barLeading: Icon(
+                    Icons.search,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  barBackgroundColor: WidgetStatePropertyAll(
+                    colorScheme.surfaceContainerHighest,
+                  ),
+                  barOverlayColor: WidgetStatePropertyAll(
+                    colorScheme.surfaceContainerHighest,
                   ),
                   barElevation: const WidgetStatePropertyAll(2.0),
+                  barTextStyle: WidgetStatePropertyAll(
+                    TextStyle(color: colorScheme.onSurface),
+                  ),
+                  barHintStyle: WidgetStatePropertyAll(
+                    TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
                   barPadding: const WidgetStatePropertyAll(
                     EdgeInsets.symmetric(horizontal: 16.0),
                   ),
@@ -242,9 +356,6 @@ class _SearchPageState extends State<SearchPage> {
                           subtitle: Text(bike.year),
                           onTap: () async {
                             // Fetch detailed specs after user selects a bike.
-                            //
-                            // The selected card will still only show main specs,
-                            // but the comparison dialog can use the expanded specs.
                             final hydratedBike =
                                 await _fetchHydratedMotorcycle(bike);
 
@@ -317,8 +428,14 @@ class _SearchPageState extends State<SearchPage> {
   //
   // This is where the full expanded specs appear.
   Widget _buildComparisonDialog(Comparison comparison) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return AlertDialog(
-      title: const Text('Motorcycle Comparison'),
+      backgroundColor: colorScheme.surfaceContainerHigh,
+      title: Text(
+        'Motorcycle Comparison',
+        style: TextStyle(color: colorScheme.onSurface),
+      ),
       content: SizedBox(
         width: 850,
         child: SingleChildScrollView(
@@ -327,18 +444,24 @@ class _SearchPageState extends State<SearchPage> {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     flex: 2,
                     child: Text(
                       'Spec',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                   ),
                   Expanded(
                     flex: 3,
                     child: Text(
                       '${comparison.bike1.make} ${comparison.bike1.model}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -346,7 +469,10 @@ class _SearchPageState extends State<SearchPage> {
                     flex: 3,
                     child: Text(
                       '${comparison.bike2.make} ${comparison.bike2.model}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                   ),
                 ],
@@ -356,11 +482,8 @@ class _SearchPageState extends State<SearchPage> {
 
               // Build every full comparison row from comparison.dart.
               //
-              // This includes:
-              // - Scores
-              // - Main specs
-              // - Expanded numeric specs
-              // - Expanded build specs
+              // Numeric rows show green/red arrows and the difference amount.
+              // Text rows show normally.
               ...comparison.comparisonRows.map((row) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -370,18 +493,31 @@ class _SearchPageState extends State<SearchPage> {
                       Expanded(
                         flex: 2,
                         child: Text(
-                          row['label'] ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          row.label,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                       ),
                       Expanded(
                         flex: 3,
-                        child: Text(row['bike1'] ?? 'N/A'),
+                        child: _buildComparisonValue(
+                          value: row.bike1,
+                          result: row.bike1Result,
+                          differenceText: row.differenceText,
+                          lowerIsBetter: row.lowerIsBetter,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         flex: 3,
-                        child: Text(row['bike2'] ?? 'N/A'),
+                        child: _buildComparisonValue(
+                          value: row.bike2,
+                          result: row.bike2Result,
+                          differenceText: row.differenceText,
+                          lowerIsBetter: row.lowerIsBetter,
+                        ),
                       ),
                     ],
                   ),
@@ -407,10 +543,15 @@ class _SearchPageState extends State<SearchPage> {
   // The detailed/expanded specs are hidden until the user presses
   // the "Compare Motorcycles" button.
   Widget _buildComparisonSection() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (selectedBikes.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(20.0),
-        child: Text('Search and select 2 motorcycles to compare.'),
+      return Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Text(
+          'Search and select 2 motorcycles to compare.',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
       );
     }
 
@@ -425,6 +566,7 @@ class _SearchPageState extends State<SearchPage> {
           return Expanded(
             child: Card(
               elevation: 4,
+              color: colorScheme.surfaceContainerHigh,
               margin: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -438,14 +580,18 @@ class _SearchPageState extends State<SearchPage> {
                         Expanded(
                           child: Text(
                             '${bike.make} ${bike.model}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: Colors.red),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Colors.redAccent,
+                          ),
                           onPressed: () {
                             setState(() {
                               selectedBikes.remove(bike);
@@ -457,15 +603,12 @@ class _SearchPageState extends State<SearchPage> {
 
                     Text(
                       bike.year,
-                      style: const TextStyle(color: Colors.grey),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
                     ),
 
                     const Divider(),
 
                     // Only the main specs show here.
-                    //
-                    // Do NOT place expanded specs here, because the user wants
-                    // those to appear only inside the comparison dialog.
                     _buildSectionTitle('Main Specs'),
                     _buildSpecRow('Engine', bike.engine),
                     _buildSpecRow('Horsepower', bike.power),
@@ -478,10 +621,10 @@ class _SearchPageState extends State<SearchPage> {
 
                     // Small hint so the user knows where the detailed specs are.
                     if (selectedBikes.length == 2)
-                      const Text(
+                      Text(
                         'Press Compare Motorcycles to view full specs.',
                         style: TextStyle(
-                          color: Colors.grey,
+                          color: colorScheme.onSurfaceVariant,
                           fontStyle: FontStyle.italic,
                         ),
                       ),
@@ -497,13 +640,16 @@ class _SearchPageState extends State<SearchPage> {
 
   // Small title used to separate sections inside each comparison card.
   Widget _buildSectionTitle(String title) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4.0),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: 15,
+          color: colorScheme.onSurface,
         ),
       ),
     );
@@ -511,11 +657,15 @@ class _SearchPageState extends State<SearchPage> {
 
   // Builds one label/value row inside a motorcycle card.
   Widget _buildSpecRow(String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: RichText(
         text: TextSpan(
-          style: const TextStyle(color: Colors.black87),
+          style: TextStyle(
+            color: colorScheme.onSurface,
+          ),
           children: [
             TextSpan(
               text: '$label: ',
