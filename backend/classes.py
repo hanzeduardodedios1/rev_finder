@@ -1,52 +1,95 @@
+# classes.py
+#
+# Backend domain classes for RevFinder.
+#
+# MotorcycleSpecs stores already-parsed/normalized motorcycle values.
+# The backend uses this class to calculate comparison metrics and then returns
+# clear JSON to the frontend.
+#
+# Updated:
+# - Power score now calculates from available power-related values.
+# - Comfort score now calculates from available comfort-related values.
+# - Scores return None only when no usable score inputs exist.
+
 import uuid
 import datetime
 
-class RiderLevel():
-    BEGINNER = 'Beginner'
-    CASUAL = 'Casual'
-    INTERMEDIATE = 'Intermediate'
-    ADVANCED = 'Advanced'
 
-class MotorcycleCategory():
-    SPORT = 'Sport'
-    CRUISER = 'Cruiser'
-    TOURING = 'Touring'
-    STANDARD = 'Standard'
-    DUAL_SPORT = 'Dual-Sport'
-    OFF_ROAD = 'Off-Road'
+class RiderLevel:
+    BEGINNER = "Beginner"
+    CASUAL = "Casual"
+    INTERMEDIATE = "Intermediate"
+    ADVANCED = "Advanced"
 
-class MotorcycleSpecs():
-    def __init__(self, engineCC: float, seatHeight: float, engineType: str, cylinders: int, horsepower: float,
-                 torque: float, weight: float, fuelCapacity: float, mpg: float, coolingSystem: str, gearbox: int,
-                 clutchType: str, frame: str, frontBreakType: str, rearBreakType: str, frontSuspension: str, 
-                 rearSuspension: str, topSpeed: float):
-        '''Initializes a MotorcycleSpecs object with the given specifications. This class is used to store detailed information about a motorcycle's specifications, which can be used for comparisons and calculations related to performance and comfort. Each attribute corresponds to a specific aspect of the motorcycle's design and capabilities.'''
-        
+
+class MotorcycleCategory:
+    SPORT = "Sport"
+    CRUISER = "Cruiser"
+    TOURING = "Touring"
+    STANDARD = "Standard"
+    DUAL_SPORT = "Dual-Sport"
+    OFF_ROAD = "Off-Road"
+
+
+class MotorcycleSpecs:
+    def __init__(
+        self,
+        engineCC=None,
+        seatHeightIn=None,
+        engineType=None,
+        cylinders=None,
+        horsepower=None,
+        torqueLbFt=None,
+        weightLb=None,
+        fuelCapacityGal=None,
+        mpg=None,
+        coolingSystem=None,
+        gearbox=None,
+        clutchType=None,
+        frame=None,
+        frontBrakeType=None,
+        rearBrakeType=None,
+        frontSuspension=None,
+        rearSuspension=None,
+        topSpeedMph=None,
+    ):
         self.engineCC = engineCC
-        self.seatHeight = seatHeight
-        self.engineType = engineType
+        self.seatHeightIn = seatHeightIn
         self.cylinders = cylinders
         self.horsepower = horsepower
-        self.torque = torque
-        self.weight = weight
-        self.fuelCapacity = fuelCapacity
+        self.torqueLbFt = torqueLbFt
+        self.weightLb = weightLb
+        self.fuelCapacityGal = fuelCapacityGal
         self.mpg = mpg
-        self.coolingSystem = coolingSystem
         self.gearbox = gearbox
+        self.topSpeedMph = topSpeedMph
+
+        self.engineType = engineType
+        self.coolingSystem = coolingSystem
         self.clutchType = clutchType
         self.frame = frame
-        self.frontBreakType = frontBreakType
-        self.rearBreakType = rearBreakType
+        self.frontBrakeType = frontBrakeType
+        self.rearBrakeType = rearBrakeType
         self.frontSuspension = frontSuspension
         self.rearSuspension = rearSuspension
-        self.topSpeed = topSpeed
+
+    def _has_all_required(self, values):
+        return all(value is not None for value in values)
 
     def calcSuspensionScore(self):
-        '''Calculate a suspension score based on the types of front and rear suspension, as well as any adjustable features. The score is determined by checking for specific keywords in the suspension descriptions and applying a scoring system that rewards more advanced suspension setups. The final score is capped at 10.0 for normalization.'''
-        front = (self.frontSuspension or "").lower()
-        rear = (self.rearSuspension or "").lower()
+        """
+        Calculate suspension quality score from front/rear suspension text.
 
-        FRONT_SCORES = {
+        Returns:
+            float | None
+        """
+        if not self._has_all_required([self.frontSuspension, self.rearSuspension]):
+            return None
+
+        front = str(self.frontSuspension).lower()
+        rear = str(self.rearSuspension).lower()
+
+        front_scores = {
             "inverted fork": 8.5,
             "upside-down fork": 8.5,
             "usd fork": 8.5,
@@ -56,13 +99,16 @@ class MotorcycleSpecs():
             "hmas cartridge fork": 8.0,
             "telescopic fork": 6.5,
             "conventional fork": 6.0,
-            "fork": 6.0
+            "fork": 6.0,
         }
 
-        REAR_SCORES = {
+        rear_scores = {
             "single shock": 8.0,
             "monoshock": 8.0,
             "mono-shock": 8.0,
+            "horizontal monoshock": 8.0,
+            "horizontal back-link": 8.0,
+            "back-link": 8.0,
             "pro-link": 8.0,
             "unitrak": 8.0,
             "uni-trak": 8.0,
@@ -71,146 +117,283 @@ class MotorcycleSpecs():
             "twin shock": 5.5,
             "dual shock": 5.5,
             "shock absorber": 6.5,
-            "rear shock": 6.5
+            "rear shock": 6.5,
         }
 
-        BONUSES = {
+        bonuses = {
             "fully adjustable": 2.0,
             "adjustable": 1.0,
+            "adjustability": 1.0,
             "preload": 0.8,
             "compression damping": 1.0,
             "rebound damping": 1.0,
             "compression": 0.5,
             "rebound": 0.5,
-            "high-speed compression": 0.6,
-            "low-speed compression": 0.6,
             "gas-charged": 0.5,
-            "long-travel": 0.4
+            "remote": 0.3,
         }
 
         front_score = 5.5
         rear_score = 5.5
 
-        for term, score in FRONT_SCORES.items():
+        for term, score in front_scores.items():
             if term in front:
                 front_score = max(front_score, score)
 
-        for term, score in REAR_SCORES.items():
+        for term, score in rear_scores.items():
             if term in rear:
                 rear_score = max(rear_score, score)
 
         bonus = 0.0
-        combined = front + " " + rear
-        for term, pts in BONUSES.items():
+        combined = f"{front} {rear}"
+
+        for term, points in bonuses.items():
             if term in combined:
-                bonus += pts
+                bonus += points
 
         total = ((front_score + rear_score) / 2) + bonus
+
         return round(min(total, 10.0), 2)
 
     def calcMaxRange(self):
-        '''Calculate the maximum range of the motorcycle based on fuel capacity and mpg'''
-        return self.fuelCapacity * self.mpg
-    
+        if not self._has_all_required([self.fuelCapacityGal, self.mpg]):
+            return None
+
+        return round(self.fuelCapacityGal * self.mpg, 2)
+
     def isBeginnerBike(self):
-        '''Determine if a bike is suitable for beginners based on engineCC and horsepower'''
+        if not self._has_all_required([self.engineCC, self.horsepower]):
+            return None
+
         return self.engineCC <= 500 and self.horsepower <= 60
-    
+
     def powerToWeightRatio(self):
-        '''Calculate the power-to-weight ratio of the motorcycle'''
-        return self.horsepower / self.weight
-    
+        if not self._has_all_required([self.horsepower, self.weightLb]):
+            return None
+
+        if self.weightLb == 0:
+            return None
+
+        return round(self.horsepower / self.weightLb, 4)
+
     def calcPowerScore(self):
-        '''Calculate a power score based on horsepower, torque, engineCC, cylinders, and weight. The formula is a weighted combination of these factors, normalized by weight to give a score that can be compared across motorcycles.'''
-        normalized_hp = self.horsepower / 200
-        normalized_weight = self.weight / 300
-        powerscore = ((normalized_hp * 0.5) + (self.torque * 0.3) + (self.engineCC * 0.05) + (self.cylinders * 4)) / (normalized_weight * 0.1)
-        
-        return powerscore
+        """
+        Calculate a 0-100 power score using available data.
+
+        Components:
+        - horsepower: up to 35 points
+        - torque: up to 25 points
+        - engineCC: up to 20 points
+        - cylinders: up to 10 points
+        - power-to-weight ratio: up to 10 points
+
+        Returns:
+            float | None
+        """
+        score = 0.0
+        possible_points = 0.0
+
+        if self.horsepower is not None:
+            score += min(self.horsepower / 200, 1.0) * 35
+            possible_points += 35
+
+        if self.torqueLbFt is not None:
+            score += min(self.torqueLbFt / 100, 1.0) * 25
+            possible_points += 25
+
+        if self.engineCC is not None:
+            score += min(self.engineCC / 1000, 1.0) * 20
+            possible_points += 20
+
+        if self.cylinders is not None:
+            score += min(self.cylinders / 4, 1.0) * 10
+            possible_points += 10
+
+        if self.horsepower is not None and self.weightLb is not None and self.weightLb > 0:
+            power_to_weight = self.horsepower / self.weightLb
+            score += min(power_to_weight / 0.45, 1.0) * 10
+            possible_points += 10
+
+        if possible_points == 0:
+            return None
+
+        return round((score / possible_points) * 100, 2)
 
     def calcComfortScore(self):
-        '''Calculate a comfort score based on various factors such as mpg, fuel capacity, gearbox, suspension score, clutch type, weight, and seat height. The formula combines these factors with specific weights to produce a comfort score that reflects the overall comfort of the motorcycle. The clutch type is scored based on the presence of certain keywords that indicate more advanced clutch systems. The final score is rounded to two decimal places for consistency.'''
-        clutch_score = 0
-        ideal_seat_height = 31.0  # Assuming an ideal seat height of 30 inches for comfort scoring
-        if "slipper" in self.clutchType.lower():
-            clutch_score += 3
-        if "assist" in self.clutchType.lower():
-            clutch_score += 2
-        if "hydraulic" in self.clutchType.lower():
-            clutch_score += 2
+        """
+        Calculate a 0-100 comfort score using available data.
 
-        comfort_score = (
-            (self.mpg * 0.30) + (self.fuelCapacity * 1.5) + (self.gearbox * 1.0) +
-            self.calcSuspensionScore() + clutch_score - (self.weight * 0.03) - 
-            (abs(self.seatHeight - ideal_seat_height) * 1.5)
-        )
+        Components:
+        - mpg: up to 20 points
+        - fuel capacity: up to 15 points
+        - gearbox: up to 10 points
+        - suspension score: up to 20 points
+        - clutch type: up to 10 points
+        - weight: up to 15 points
+        - seat height: up to 10 points
 
-        return round(comfort_score, 2)
+        Returns:
+            float | None
+        """
+        score = 0.0
+        possible_points = 0.0
+
+        if self.mpg is not None:
+            score += min(self.mpg / 60, 1.0) * 20
+            possible_points += 20
+
+        if self.fuelCapacityGal is not None:
+            score += min(self.fuelCapacityGal / 5, 1.0) * 15
+            possible_points += 15
+
+        if self.gearbox is not None:
+            score += min(self.gearbox / 6, 1.0) * 10
+            possible_points += 10
+
+        suspension_score = self.calcSuspensionScore()
+        if suspension_score is not None:
+            score += min(suspension_score / 10, 1.0) * 20
+            possible_points += 20
+
+        if self.clutchType is not None:
+            clutch_score = 5
+            clutch_type = str(self.clutchType).lower()
+
+            if "slipper" in clutch_type:
+                clutch_score += 2
+
+            if "assist" in clutch_type:
+                clutch_score += 2
+
+            if "hydraulic" in clutch_type:
+                clutch_score += 1
+
+            score += min(clutch_score, 10)
+            possible_points += 10
+
+        if self.weightLb is not None:
+            if self.weightLb <= 350:
+                weight_score = 15
+            elif self.weightLb >= 650:
+                weight_score = 0
+            else:
+                weight_score = ((650 - self.weightLb) / 300) * 15
+
+            score += weight_score
+            possible_points += 15
+
+        if self.seatHeightIn is not None:
+            ideal_seat_height = 31.0
+            difference = abs(self.seatHeightIn - ideal_seat_height)
+            seat_score = max(0, 10 - ((difference / 6) * 10))
+
+            score += seat_score
+            possible_points += 10
+
+        if possible_points == 0:
+            return None
+
+        return round((score / possible_points) * 100, 2)
+
+    def to_dict(self):
+        return {
+            "parsed_engine_cc": self.engineCC,
+            "parsed_horsepower": self.horsepower,
+            "parsed_torque_lb_ft": self.torqueLbFt,
+            "parsed_weight_lb": self.weightLb,
+            "parsed_seat_height_in": self.seatHeightIn,
+            "parsed_fuel_capacity_gal": self.fuelCapacityGal,
+            "parsed_mpg": self.mpg,
+
+            "engine_cc": self.engineCC,
+            "horsepower": self.horsepower,
+            "torque": self.torqueLbFt,
+            "weight": self.weightLb,
+            "seat_height": self.seatHeightIn,
+            "fuel_capacity": self.fuelCapacityGal,
+            "fuel_capacity_gallons": self.fuelCapacityGal,
+            "mpg": self.mpg,
+
+            "engine_type": self.engineType,
+            "cylinders": self.cylinders,
+            "cooling_system": self.coolingSystem,
+            "gearbox": self.gearbox,
+            "clutch_type": self.clutchType,
+            "frame": self.frame,
+            "front_brake_type": self.frontBrakeType,
+            "rear_brake_type": self.rearBrakeType,
+            "front_suspension": self.frontSuspension,
+            "rear_suspension": self.rearSuspension,
+            "top_speed": self.topSpeedMph,
+
+            "suspension_score": self.calcSuspensionScore(),
+            "power_score": self.calcPowerScore(),
+            "comfort_score": self.calcComfortScore(),
+            "power_to_weight_ratio": self.powerToWeightRatio(),
+            "max_range": self.calcMaxRange(),
+            "is_beginner_bike": self.isBeginnerBike(),
+        }
 
 
-class MotorcycleImage():
+class MotorcycleImage:
     def __init__(self, imageURL: str, imageDescription: str):
-        '''Initializes a MotorcycleImage object with the given image URL and description. This class is used to store information about images of motorcycles, allowing for easy association of images with motorcycle objects.'''
         self.imageURL = imageURL
         self.imageDescription = imageDescription
 
 
-class Motorcycle():
-    def __init__(self, make: str, model: str, year: int, category: str, popularityScore: float):
-        '''Initializes a Motorcycle object with the given make, model, year, category, and popularity score. A unique motorcycle ID is generated using uuid4 for each instance. The specs attribute is initialized to None and can be filled in later when the specifications data is available. An empty list is created to hold images of the motorcycle.'''
+class Motorcycle:
+    def __init__(
+        self,
+        make: str,
+        model: str,
+        year: int,
+        category: str,
+        popularityScore: float,
+    ):
         self._motoID = uuid.uuid4()
         self.make = make
         self.model = model
         self.year = year
         self.category = category
         self.popularityScore = popularityScore
-
-        # This will be used to store the specs of the motorcycle, which can be filled in later when the data is available
         self.specs = None
         self.images = []
 
     def getFullName(self):
-        '''Returns the full name of the motorcycle in the format "Year Make Model".'''
-        return str(self.year) + " " + self.make + " " + self.model
+        return f"{self.year} {self.make} {self.model}"
 
     def addSpecs(self, specs: MotorcycleSpecs):
-        '''Adds the specifications to the motorcycle. This method allows you to set the specs attribute of the motorcycle after the initial creation of the object, which is useful if the specs data is obtained separately from the basic information.'''
         self.specs = specs
 
     def getMotoID(self):
-        '''Returns the unique ID of the motorcycle.'''
         return self._motoID
 
 
-class Comparison():
+class Comparison:
     def __init__(self, motorcycle1: Motorcycle = None, motorcycle2: Motorcycle = None, count: int = 0):
-        '''Initializes a comparison object with two motorcycle slots and a count of how many motorcycles are currently in the comparison. The comparison ID is generated using uuid4 for uniqueness, and the creation time is recorded.'''
         self._comparisonID = uuid.uuid4()
         self.motorcycles = [motorcycle1, motorcycle2]
         self.motorcycleCount = count
         self._creationTime = datetime.datetime.now()
 
     def getComparisonID(self):
-        '''Returns the unique ID of the comparison.'''
         return self._comparisonID
-    
+
     def getCreationTime(self):
-        '''Returns the creation time of the comparison.'''
         return self._creationTime
 
     def addMotorcycle(self, motorcycle: Motorcycle):
-        '''Adds a motorcycle to the comparison. Raises an exception if both slots are already filled.'''
         if self.motorcycleCount < 2:
             if self.motorcycles[0] is None:
                 self.motorcycles[0] = motorcycle
             elif self.motorcycles[1] is None:
                 self.motorcycles[1] = motorcycle
+
             self.motorcycleCount += 1
         else:
             raise Exception("Both motorcycle slots are already filled.")
-        
+
     def deleteMotorcycle(self, motorcycle: Motorcycle):
-        '''Deletes a motorcycle from the comparison. Raises an exception if the motorcycle is not found in the comparison.'''
         if self.motorcycles[0] == motorcycle:
             self.motorcycles[0] = None
             self.motorcycleCount -= 1
@@ -219,114 +402,31 @@ class Comparison():
             self.motorcycleCount -= 1
         else:
             raise Exception("Motorcycle not found in comparison.")
-        
+
     def getMotorcycles(self):
-        '''Returns the list of motorcycles currently in the comparison.'''
         return self.motorcycles
-    
+
     def getMotorcycleCount(self):
-        '''Returns the count of how many motorcycles are currently in the comparison.'''
         return self.motorcycleCount
-        
+
     def clearComparison(self):
-        '''Deletes the entire comparison by resetting the motorcycle slots and count.'''
         self.motorcycles = [None, None]
         self.motorcycleCount = 0
 
-    def findGreaterValue(self, val1, val2):
-        '''Compares two values and returns 1 if val1 is greater, -1 if val2 is greater, and 0 if they are equal. Raises an exception if both motorcycle slots are not filled.'''
-        if self.motorcycleCount < 2:
-            raise Exception("Both motorcycle slots must be filled to compare.")
-        if val1 > val2:
-            return 1
-        elif val1 < val2:
-            return -1
-        else:
-            return 0
-        
-    def returnComparison(self, greater_val: int, motoValues: list):
-        '''Returns the result of a comparison based on the greater value and the corresponding motorcycle. If greater_val is 1, it returns the difference and the first motorcycle. If greater_val is -1, it returns the difference and the second motorcycle. If greater_val is 0, it returns 0.'''
-        if greater_val == 1:
-            return [motoValues[0] - motoValues[1], self.motorcycles[0]]
-        elif greater_val == -1:
-            return [motoValues[1] - motoValues[0], self.motorcycles[1]]
-        else:
-            return 0
 
-    def comparePower(self):
-        '''Compares the power score of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.calcPowerScore(), self.motorcycles[1].specs.calcPowerScore())
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.calcPowerScore(), self.motorcycles[1].specs.calcPowerScore()])
-
-    def compareComfort(self):
-        '''Compares the comfort score of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.calcComfortScore(), self.motorcycles[1].specs.calcComfortScore())
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.calcComfortScore(), self.motorcycles[1].specs.calcComfortScore()])
-
-    def compareRange(self):
-        '''Compares the maximum range of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.calcMaxRange(), self.motorcycles[1].specs.calcMaxRange())
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.calcMaxRange(), self.motorcycles[1].specs.calcMaxRange()])
-
-    def compareHorsepower(self):
-        '''Compares the horsepower of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.horsepower, self.motorcycles[1].specs.horsepower)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.horsepower, self.motorcycles[1].specs.horsepower])
-    
-    def compareTorque(self):
-        '''Compares the torque of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.torque, self.motorcycles[1].specs.torque)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.torque, self.motorcycles[1].specs.torque])
-    
-    def compareWeight(self):
-        '''Compares the weight of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.weight, self.motorcycles[1].specs.weight)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.weight, self.motorcycles[1].specs.weight]) 
-    
-    def compareMPG(self):
-        '''Compares the miles per gallon of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.mpg, self.motorcycles[1].specs.mpg)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.mpg, self.motorcycles[1].specs.mpg])
-    
-    def compareTopSpeed(self):
-        '''Compares the top speed of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.topSpeed, self.motorcycles[1].specs.topSpeed)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.topSpeed, self.motorcycles[1].specs.topSpeed])
-    
-    def comparePowerToWeight(self):
-        '''Compares the power-to-weight ratio of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.powerToWeightRatio(), self.motorcycles[1].specs.powerToWeightRatio())
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.powerToWeightRatio(), self.motorcycles[1].specs.powerToWeightRatio()])
-    
-    def compareSeatHeight(self):
-        '''Compares the seat height of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.seatHeight, self.motorcycles[1].specs.seatHeight)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.seatHeight, self.motorcycles[1].specs.seatHeight])
-    
-    def compareEngineCC(self):
-        '''Compares the engine displacement (CC) of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.engineCC, self.motorcycles[1].specs.engineCC)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.engineCC, self.motorcycles[1].specs.engineCC])
-    
-    def compareCylinders(self):
-        '''Compares the number of cylinders of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.cylinders, self.motorcycles[1].specs.cylinders)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.cylinders, self.motorcycles[1].specs.cylinders])
-    
-    def compareFuelCapacity(self):
-        '''Compares the fuel capacity of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.fuelCapacity, self.motorcycles[1].specs.fuelCapacity)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.fuelCapacity, self.motorcycles[1].specs.fuelCapacity])
-    
-    def compareGearbox(self):
-        '''Compares the number of gears in the gearbox of the two motorcycles and returns the result using the returnComparison method.'''
-        comp_value = self.findGreaterValue(self.motorcycles[0].specs.gearbox, self.motorcycles[1].specs.gearbox)
-        return self.returnComparison(comp_value, [self.motorcycles[0].specs.gearbox, self.motorcycles[1].specs.gearbox])
-
-
-class User():
-    def __init__(self, name: str, email: str, phoneNo: int, MotoHistory: list, UserVerified: bool, riderLevel, passwordHash: str, isActive: bool, comparisonHistory: list = None):
-        '''Initializes a User object with the given attributes. A unique user ID is generated using uuid4 for each instance. The creation time is recorded, and the comparison history is optional and can be initialized as an empty list if not provided. This class represents a user of the motorcycle comparison system, storing their personal information, motorcycle history, verification status, rider level, password hash, active status, and comparison history.'''
+class User:
+    def __init__(
+        self,
+        name: str,
+        email: str,
+        phoneNo: int,
+        MotoHistory: list,
+        UserVerified: bool,
+        riderLevel,
+        passwordHash: str,
+        isActive: bool,
+        comparisonHistory: list = None,
+    ):
         self._userID = uuid.uuid4()
         self._name = name
         self._email = email
@@ -339,43 +439,6 @@ class User():
         self._creationTime = datetime.datetime.now()
         self._comparisonHistory = comparisonHistory
 
-    def requestVerification(self, method):
-        # Implement verification using external software?
-        pass
-
-    def markPurchased(self, motorcycle: Motorcycle):
-        # Using the assumption that MotoHistory represents the motorcycles the user has marked as purchased
-        self.MotoHistory.append(motorcycle)
-
-    def addComparisonHistory(self, comparison: Comparison):
-        '''Adds a comparison to the user's comparison history. If the comparison history is not already initialized, it creates an empty list before adding the new comparison. This allows users to keep track of their past comparisons for future reference.'''
-        if self._comparisonHistory is None:
-            self._comparisonHistory = []
-        self._comparisonHistory.append(comparison)
-
-    def deleteComparisonHistory(self, comparison: Comparison):
-        '''Deletes a comparison from the user's comparison history. Raises an exception if the comparison is not found in the history. This allows users to manage their comparison history by removing entries they no longer wish to keep.'''
-        if self._comparisonHistory is not None and comparison in self._comparisonHistory:
-            self._comparisonHistory.remove(comparison)
-        else:
-            raise Exception("Comparison not found in history.")
-
-    def clearComparisonHistory(self):
-        '''Clears the user's entire comparison history by resetting it to an empty list. This allows users to start fresh with their comparisons if they choose to do so.'''
-        self._comparisonHistory = []
-
-    def getComparisonHistory(self):
-        '''Returns the user's comparison history. If the comparison history is not initialized, it returns an empty list. This allows users to access their past comparisons for review or analysis.'''
-        return self._comparisonHistory
-
-    def addMotorcycleToHistory(self, motorcycle: Motorcycle):
-        '''Adds a motorcycle to the user's motorcycle history. If the motorcycle history is not already initialized, it creates an empty list before adding the new motorcycle. It also checks to prevent duplicate entries in the history. This allows users to keep track of motorcycles they have owned or are interested in.'''
-        if self._MotoHistory is None:
-            self._MotoHistory = []
-        if motorcycle not in self._MotoHistory:
-            self._MotoHistory.append(motorcycle)
-        else:
-            raise Exception("Motorcycle already in history.")
 
 class Purchase:
     def __init__(self, user_id: uuid.UUID, motorcycle_id: uuid.UUID):
@@ -402,12 +465,7 @@ class Favorite:
 
 
 class Review:
-    def __init__(self, 
-                 user_id: uuid.UUID, 
-                 motorcycle_id: uuid.UUID, 
-                 rating: int, 
-                 message: str = ""):
-        
+    def __init__(self, user_id: uuid.UUID, motorcycle_id: uuid.UUID, rating: int, message: str = ""):
         self.reviewID = uuid.uuid1()
         self.userID = user_id
         self.motorcycleID = motorcycle_id
