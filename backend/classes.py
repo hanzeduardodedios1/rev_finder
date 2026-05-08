@@ -162,6 +162,16 @@ class MotorcycleSpecs:
         return round(self.fuelCapacityGal * self.mpg, 2)
 
     def isBeginnerBike(self):
+        # 50-125cc two-strokes are learner/moped class by definition.
+        if self.engineCC is not None and self.engineType is not None:
+            engine_type = str(self.engineType).lower()
+            is_two_stroke = (
+                "two-stroke" in engine_type
+                or "2-stroke" in engine_type
+            )
+            if is_two_stroke and self.engineCC <= 125:
+                return True
+
         if not self._has_all_required([self.engineCC, self.horsepower]):
             return None
 

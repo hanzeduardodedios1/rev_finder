@@ -2,24 +2,38 @@
 //
 // Main Flutter UI for RevFinder.
 //
-// Updated behavior:
-// - Website now uses dark mode.
-// - Search bar, cards, dialog, and text colors adapt to the dark theme.
-// - When a user selects a motorcycle, the card only shows the main specs.
-// - The full expanded specs only appear when the user presses
-//   the "Compare Motorcycles" button.
-// - The comparison dialog shows green styling for better numeric values
-//   and red styling for worse numeric values.
-// - For inverse rows like weight and seat height, lower values show
-//   as green negative differences.
+// Premium dark motorcycle search (#121212 surface, purple accents).
+// Airbnb-style pinned search capsule; swipe-friendly selection cards.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'apiservice.dart';
+import 'auth_page.dart';
 import 'comparison.dart';
+import 'comparison_modal.dart';
 import 'motorcycle.dart';
 
-void main() {
+const Color _kAppSurface = Color(0xFF121212);
+const Color _kSearchPillFill = Color(0xFF1E1E1E);
+
+/// Replace with your Supabase project URL (Dashboard → Settings → API).
+const String kSupabaseUrl = 'https://tgkhaqhxyhkdlgmmfgey.supabase.co';
+
+/// Replace with your Supabase anon public key (Dashboard → Settings → API).
+const String kSupabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRna2hhcWh4eWhrZGxnbW1mZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxODc2MDAsImV4cCI6MjA5Mzc2MzYwMH0.BFdpEE9Ks9fwRxOsZVeSCjHUVGjvrVtEpL1lPUsEH28';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: kSupabaseUrl,
+    anonKey: kSupabaseAnonKey,
+  );
+
   runApp(const MyApp());
 }
 
@@ -69,9 +83,49 @@ class MyApp extends StatelessWidget {
       // the user's device/browser theme setting.
       themeMode: ThemeMode.dark,
 
-      home: const SearchPage(),
+      home: const AuthGate(),
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+/// Shows [SearchPage] when a Supabase session exists, otherwise [AuthPage].
+/// Listens to auth changes so login/sign-out updates the root without manual routes.
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late final StreamSubscription<AuthState> _authSub;
+  Session? _session;
+
+  @override
+  void initState() {
+    super.initState();
+    _session = Supabase.instance.client.auth.currentSession;
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen(
+      (data) {
+        if (!mounted) return;
+        setState(() => _session = data.session);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _authSub.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_session != null) {
+      return const SearchPage();
+    }
+    return const AuthPage();
   }
 }
 
@@ -90,6 +144,12 @@ class _SearchPageState extends State<SearchPage> {
 
   // Handles backend API calls.
   final ApiService _apiService = ApiService();
+  static const List<String> _suggestedComparisonLabels = [
+    'Kawasaki Z400 vs Honda CB500F',
+    'Yamaha MT-07 vs Suzuki SV650',
+    'BMW R nineT vs Triumph Bonneville',
+  ];
+  bool _loadingSuggestedComparison = false;
 
   // Creates a Comparison object only when two bikes are selected.
   Comparison? get currentComparison {
@@ -182,86 +242,58 @@ class _SearchPageState extends State<SearchPage> {
     return selectedSuggestion;
   }
 
-  // Builds one value inside the comparison dialog.
-  //
-  // Numeric comparison rows show:
-  // - green styling if this motorcycle has the better value
-  // - red styling if this motorcycle has the worse value
-  // - gray Equal label if both values are equal
-  //
-  // For normal rows, higher is better:
-  //   better value = green up arrow with +difference
-  //
-  // For inverse rows like weight and seat height, lower is better:
-  //   better value = green down arrow with -difference
-  Widget _buildComparisonValue({
-    required String value,
-    required ComparisonResult result,
-    required String differenceText,
-    required bool lowerIsBetter,
-  }) {
-    if (result == ComparisonResult.none) {
-      return Text(value);
-    }
-
-    if (result == ComparisonResult.equal) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value),
-          const SizedBox(height: 2),
-          const Text(
-            'Equal',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      );
-    }
-
-    // In comparison.dart, ComparisonResult.higher means this row's value
-    // should be treated as the better value. For inverse rows, that better
-    // value is actually the lower numeric value.
-    final isBetter = result == ComparisonResult.higher;
-
-    final color = isBetter ? Colors.greenAccent : Colors.redAccent;
-
-    final icon = lowerIsBetter
-        ? (isBetter ? Icons.arrow_downward : Icons.arrow_upward)
-        : (isBetter ? Icons.arrow_upward : Icons.arrow_downward);
-
-    final prefix = lowerIsBetter
-        ? (isBetter ? '-' : '+')
-        : (isBetter ? '+' : '-');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value),
-        const SizedBox(height: 2),
-        Row(
-          children: [
-            Icon(
-              icon,
-              color: color,
-              size: 16,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '$prefix$differenceText',
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ],
+  Future<Motorcycle?> _searchFirstMotorcycle(String query) async {
+    final encodedQuery = Uri.encodeQueryComponent(query);
+    final response = await _apiService.fetchData(
+      '/api/motorcycles/search?model=$encodedQuery',
     );
+    if (response is! List || response.isEmpty) return null;
+
+    for (final item in response) {
+      if (item is Map) {
+        return Motorcycle.fromJson(Map<String, dynamic>.from(item));
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _selectSuggestedComparison(String label) async {
+    final parts = label.split(' vs ');
+    if (parts.length != 2 || _loadingSuggestedComparison) return;
+
+    setState(() => _loadingSuggestedComparison = true);
+    try {
+      final first = await _searchFirstMotorcycle(parts[0]);
+      final second = await _searchFirstMotorcycle(parts[1]);
+      if (first == null || second == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load suggested comparison.')),
+        );
+        return;
+      }
+
+      final hydratedFirst = await _fetchHydratedMotorcycle(first);
+      final hydratedSecond = await _fetchHydratedMotorcycle(second);
+      if (!mounted) return;
+
+      setState(() {
+        selectedBikes
+          ..clear()
+          ..add(hydratedFirst)
+          ..add(hydratedSecond);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Suggested comparison failed.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loadingSuggestedComparison = false);
+      }
+    }
   }
 
   @override
@@ -269,153 +301,89 @@ class _SearchPageState extends State<SearchPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
-      body: SingleChildScrollView(
+      backgroundColor: _kAppSurface,
+      body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1100),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
-
-                Text(
-                  'RevFinder',
-                  style: TextStyle(
-                    fontSize: 48.0,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -1.0,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                // Search bar that gets motorcycle suggestions from the backend.
-                SearchAnchor.bar(
-                  barHintText: 'Search make, model, or year ...',
-                  barLeading: Icon(
-                    Icons.search,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  barBackgroundColor: WidgetStatePropertyAll(
-                    colorScheme.surfaceContainerHighest,
-                  ),
-                  barOverlayColor: WidgetStatePropertyAll(
-                    colorScheme.surfaceContainerHighest,
-                  ),
-                  barElevation: const WidgetStatePropertyAll(2.0),
-                  barTextStyle: WidgetStatePropertyAll(
-                    TextStyle(color: colorScheme.onSurface),
-                  ),
-                  barHintStyle: WidgetStatePropertyAll(
-                    TextStyle(color: colorScheme.onSurfaceVariant),
-                  ),
-                  barPadding: const WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(horizontal: 16.0),
-                  ),
-                  barShape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28.0),
-                    ),
-                  ),
-                  suggestionsBuilder: (
-                    BuildContext context,
-                    SearchController controller,
-                  ) async {
-                    // Empty search case.
-                    if (controller.text.isEmpty) {
-                      return const Iterable<Widget>.empty();
-                    }
-
-                    try {
-                      // Encode spaces so searches like "Ninja 400" do not break.
-                      final encodedQuery = Uri.encodeQueryComponent(
-                        controller.text,
-                      );
-
-                      final response = await _apiService.fetchData(
-                        '/api/motorcycles/search?model=$encodedQuery',
-                      );
-
-                      // Convert JSON response into Motorcycle objects.
-                      final List<dynamic> data = response as List<dynamic>;
-
-                      final motorcycles = data
-                          .whereType<Map>()
-                          .map(
-                            (json) => Motorcycle.fromJson(
-                              Map<String, dynamic>.from(json),
-                            ),
-                          )
-                          .toList();
-
-                      return motorcycles.map((bike) {
-                        return ListTile(
-                          title: Text('${bike.make} ${bike.model}'),
-                          subtitle: Text(bike.year),
-                          onTap: () async {
-                            // Fetch detailed specs after user selects a bike.
-                            final hydratedBike =
-                                await _fetchHydratedMotorcycle(bike);
-
-                            if (!mounted) return;
-
-                            setState(() {
-                              final alreadyExists = selectedBikes.any(
-                                (b) =>
-                                    _normalizeForMatch(b.make) ==
-                                        _normalizeForMatch(hydratedBike.make) &&
-                                    _normalizeForMatch(b.model) ==
-                                        _normalizeForMatch(hydratedBike.model),
-                              );
-
-                              // Add the selected bike if it is not already selected.
-                              if (!alreadyExists && selectedBikes.length < 2) {
-                                selectedBikes.add(hydratedBike);
-                              }
-                            });
-
-                            // Close search bar after selection.
-                            controller.closeView('');
-                          },
-                        );
-                      });
-                    } catch (e) {
-                      return [
-                        ListTile(
-                          title: Text('Error fetching bikes: $e'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'RevFinder',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
+                          color: colorScheme.onSurface,
                         ),
-                      ];
-                    }
-                  },
+                      ),
+                      Text(
+                        'Find and compare motorcycles',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.85,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _buildStickySearchPill(colorScheme),
+                      const SizedBox(height: 10),
+                      _buildSuggestedComparisonChips(colorScheme),
+                    ],
+                  ),
                 ),
 
-                if (selectedBikes.length == 2)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Opacity(
+                    opacity: selectedBikes.length >= 2 ? 1.0 : 0.4,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        final comparison = currentComparison;
-
-                        if (comparison == null) return;
-
-                        showDialog(
-                          context: context,
-                          builder: (_) => _buildComparisonDialog(comparison),
-                        );
-                      },
-                      icon: const Icon(Icons.compare_arrows),
-                      label: const Text('Compare Motorcycles'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: selectedBikes.length >= 2
+                          ? () {
+                              final comparison = currentComparison;
+                              if (comparison == null) return;
+                              ComparisonModal.show(
+                                context,
+                                comparison: comparison,
+                                apiService: _apiService,
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.compare_arrows_rounded),
+                      label: const Text(
+                        'Compare motorcycles',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                   ),
+                ),
 
-                const SizedBox(height: 40),
-
-                // Shows only the main selected motorcycle cards.
-                _buildComparisonSection(),
-
-                const SizedBox(height: 40),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
+                    child: _buildComparisonSection(colorScheme),
+                  ),
+                ),
               ],
             ),
           ),
@@ -424,254 +392,358 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  // Builds the pop-up comparison dialog.
-  //
-  // This is where the full expanded specs appear.
-  Widget _buildComparisonDialog(Comparison comparison) {
-    final colorScheme = Theme.of(context).colorScheme;
+  Widget _buildStickySearchPill(ColorScheme colorScheme) {
+    final accentPurple = colorScheme.primary;
 
-    return AlertDialog(
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      title: Text(
-        'Motorcycle Comparison',
-        style: TextStyle(color: colorScheme.onSurface),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(36),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.45),
+            offset: const Offset(0, 10),
+            blurRadius: 28,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
       ),
-      content: SizedBox(
-        width: 850,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'Spec',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      '${comparison.bike1.make} ${comparison.bike1.model}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      '${comparison.bike2.make} ${comparison.bike2.model}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+      child: Material(
+        color: Colors.transparent,
+        child: SearchAnchor.bar(
+          barHintText: 'Search make, model, or year',
+          barLeading: Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Icon(
+              Icons.search_rounded,
+              size: 26,
+              color: accentPurple.withValues(alpha: 0.9),
+            ),
+          ),
+          barTrailing: [],
+          barBackgroundColor: const WidgetStatePropertyAll(_kSearchPillFill),
+          barOverlayColor: const WidgetStatePropertyAll(_kSearchPillFill),
+          barElevation: WidgetStatePropertyAll(0),
+          barTextStyle: WidgetStatePropertyAll(
+            TextStyle(
+              fontSize: 16,
+              color: colorScheme.onSurface.withValues(alpha: 0.95),
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          barHintStyle: WidgetStatePropertyAll(
+            TextStyle(
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          barPadding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(
+              horizontal: 22,
+              vertical: 17,
+            ),
+          ),
+          barShape: WidgetStatePropertyAll(
+            const StadiumBorder(),
+          ),
+          suggestionsBuilder: (
+            BuildContext context,
+            SearchController controller,
+          ) async {
+            if (controller.text.isEmpty) {
+              return const Iterable<Widget>.empty();
+            }
 
-              const Divider(),
+            try {
+              final encodedQuery = Uri.encodeQueryComponent(controller.text);
 
-              // Build every full comparison row from comparison.dart.
-              //
-              // Numeric rows show green/red arrows and the difference amount.
-              // Text rows show normally.
-              ...comparison.comparisonRows.map((row) {
+              final response = await _apiService.fetchData(
+                '/api/motorcycles/search?model=$encodedQuery',
+              );
+
+              final List<dynamic> data = response as List<dynamic>;
+
+              final motorcycles = data
+                  .whereType<Map>()
+                  .map(
+                    (json) => Motorcycle.fromJson(
+                      Map<String, dynamic>.from(json),
+                    ),
+                  )
+                  .toList();
+
+              if (motorcycles.isEmpty) {
+                return const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Text('No results found from API'),
+                    ),
+                  ),
+                ];
+              }
+
+              return motorcycles.map((bike) {
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          row.label,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: _buildComparisonValue(
-                          value: row.bike1,
-                          result: row.bike1Result,
-                          differenceText: row.differenceText,
-                          lowerIsBetter: row.lowerIsBetter,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 3,
-                        child: _buildComparisonValue(
-                          value: row.bike2,
-                          result: row.bike2Result,
-                          differenceText: row.differenceText,
-                          lowerIsBetter: row.lowerIsBetter,
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  child: ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    title: Text(
+                      '${bike.make} ${bike.model}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(bike.year),
+                    onTap: () async {
+                      final hydratedBike = await _fetchHydratedMotorcycle(bike);
+
+                      if (!mounted) return;
+
+                      setState(() {
+                        final alreadyExists = selectedBikes.any(
+                          (b) =>
+                              _normalizeForMatch(b.make) ==
+                                  _normalizeForMatch(hydratedBike.make) &&
+                              _normalizeForMatch(b.model) ==
+                                  _normalizeForMatch(hydratedBike.model),
+                        );
+
+                        if (!alreadyExists && selectedBikes.length < 2) {
+                          selectedBikes.add(hydratedBike);
+                        }
+                      });
+
+                      controller.closeView('');
+                    },
                   ),
                 );
-              }),
-            ],
-          ),
+              });
+            } catch (e) {
+              debugPrint('SEARCH UI ERROR: $e');
+              return [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      e.toString(),
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ];
+            }
+          },
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
-      ],
     );
   }
 
-  // Builds the main selected motorcycle card section.
-  //
-  // Important:
-  // This section intentionally displays ONLY the main specs.
-  // The detailed/expanded specs are hidden until the user presses
-  // the "Compare Motorcycles" button.
-  Widget _buildComparisonSection() {
-    final colorScheme = Theme.of(context).colorScheme;
+  Widget _buildSuggestedComparisonChips(ColorScheme colorScheme) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _suggestedComparisonLabels.map((label) {
+        return ActionChip(
+          onPressed: _loadingSuggestedComparison
+              ? null
+              : () => _selectSuggestedComparison(label),
+          side: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+          ),
+          backgroundColor: Colors.transparent,
+          label: Text(
+            label,
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.82),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildComparisonSection(ColorScheme colorScheme) {
+    final muted = colorScheme.onSurfaceVariant.withValues(alpha: 0.75);
 
     if (selectedBikes.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Text(
-          'Search and select 2 motorcycles to compare.',
-          style: TextStyle(color: colorScheme.onSurface),
+        padding: const EdgeInsets.symmetric(vertical: 56),
+        child: Column(
+          children: [
+            Icon(
+              Icons.two_wheeler_rounded,
+              size: 46,
+              color: muted.withValues(alpha: 0.45),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Search above to add motorcycles to your list.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: muted,
+                height: 1.45,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pick two bikes to unlock full comparisons.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: muted.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: selectedBikes.map((bike) {
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: bike == selectedBikes.last ? 0 : 10,
+              left: bike == selectedBikes.first ? 0 : 10,
+            ),
+            child: _SelectionCard(
+              bike: bike,
+              colorScheme: colorScheme,
+              onRemove: () {
+                setState(() => selectedBikes.remove(bike));
+              },
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
 
-        // Convert each selected bike into a visual card.
-        children: selectedBikes.map((bike) {
-          return Expanded(
-            child: Card(
-              elevation: 4,
-              color: colorScheme.surfaceContainerHigh,
-              margin: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Card header with motorcycle name and remove button.
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${bike.make} ${bike.model}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              selectedBikes.remove(bike);
-                            });
-                          },
-                        ),
-                      ],
-                    ),
+class _SelectionCard extends StatelessWidget {
+  const _SelectionCard({
+    required this.bike,
+    required this.colorScheme,
+    required this.onRemove,
+  });
 
-                    Text(
-                      bike.year,
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
+  final Motorcycle bike;
+  final ColorScheme colorScheme;
+  final VoidCallback onRemove;
 
-                    const Divider(),
+  @override
+  Widget build(BuildContext context) {
+    final cardBg = colorScheme.surfaceContainerHigh;
+    final primary = colorScheme.primary;
 
-                    // Only the main specs show here.
-                    _buildSectionTitle('Main Specs'),
-                    _buildSpecRow('Engine', bike.engine),
-                    _buildSpecRow('Horsepower', bike.power),
-                    _buildSpecRow('Torque', bike.torque),
-                    _buildSpecRow('Weight', bike.weight),
-                    _buildSpecRow('Seat Height', bike.seatHeight),
-                    _buildSpecRow('Transmission', bike.transmission),
-
-                    const SizedBox(height: 12),
-
-                    // Small hint so the user knows where the detailed specs are.
-                    if (selectedBikes.length == 2)
+    return Card(
+      elevation: 0,
+      color: cardBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 22, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'Press Compare Motorcycles to view full specs.',
+                        bike.make.toUpperCase(),
                         style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                          fontStyle: FontStyle.italic,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.05,
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.8,
+                          ),
                         ),
                       ),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        bike.model,
+                        style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        bike.year,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                IconButton(
+                  tooltip: 'Remove',
+                  onPressed: onRemove,
+                  splashRadius: 22,
+                  icon: Icon(Icons.close_rounded, color: colorScheme.error),
+                ),
+              ],
             ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  // Small title used to separate sections inside each comparison card.
-  Widget _buildSectionTitle(String title) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4.0),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 15,
-          color: colorScheme.onSurface,
-        ),
-      ),
-    );
-  }
-
-  // Builds one label/value row inside a motorcycle card.
-  Widget _buildSpecRow(String label, String value) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(
-            color: colorScheme.onSurface,
-          ),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CheckboxTheme(
+                    data: CheckboxThemeData(
+                      fillColor: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.selected)) {
+                          return primary;
+                        }
+                        return Colors.transparent;
+                      }),
+                      side: BorderSide(width: 1.25, color: primary),
+                      shape: const CircleBorder(),
+                    ),
+                    child: Checkbox(
+                      value: true,
+                      onChanged: (v) {
+                        if (v == false) onRemove();
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Compare',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: colorScheme.onSurface.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
             ),
-            TextSpan(text: value),
           ],
         ),
       ),

@@ -66,6 +66,46 @@ class Motorcycle {
       specs: MotorcycleSpecs.fromJson(json),
     );
   }
+
+  /// Full spec map for API payloads (comparison summary, etc.).
+  Map<String, dynamic> toComparisonPayload() {
+    final s = specs;
+    return {
+      'make': make,
+      'model': model,
+      'year': year,
+      'engine_display': s.engine,
+      'power_display': s.power,
+      'torque_display': s.torqueDisplay,
+      'weight_display': s.weightDisplay,
+      'seat_height_display': s.seatHeightDisplay,
+      'transmission_display': s.transmission,
+      'parsed_engine_cc': s.engineCC,
+      'parsed_horsepower': s.horsepower,
+      'parsed_torque_lb_ft': s.torque,
+      'parsed_weight_lb': s.weight,
+      'parsed_seat_height_in': s.seatHeight,
+      'parsed_fuel_capacity_gal': s.fuelCapacityGallons,
+      'parsed_mpg': s.mpg,
+      'cylinders': s.cylinders,
+      'gearbox': s.gearbox,
+      'top_speed_mph': s.topSpeed,
+      'engine_type': s.engineType,
+      'cooling_system': s.coolingSystem,
+      'clutch_type': s.clutchType,
+      'frame': s.frame,
+      'front_brake_type': s.frontBrakeType,
+      'rear_brake_type': s.rearBrakeType,
+      'front_suspension': s.frontSuspension,
+      'rear_suspension': s.rearSuspension,
+      'power_score': s.powerScore,
+      'comfort_score': s.comfortScore,
+      'suspension_score': s.suspensionScore,
+      'power_to_weight_ratio': s.powerToWeightRatio,
+      'max_range': s.maxRange,
+      'is_beginner_bike': s.isBeginnerBike,
+    };
+  }
 }
 
 class MotorcycleSpecs {
@@ -260,13 +300,13 @@ class MotorcycleSpecs {
   // ------------------------------------------------------------
 
   static String formatScore(double? value) {
-    if (value == null) return 'null';
+    if (value == null) return '';
 
     return value.toStringAsFixed(2);
   }
 
   static String formatDouble(double? value, String unit) {
-    if (value == null) return 'null';
+    if (value == null) return '';
 
     final formatted = value.toStringAsFixed(2);
 
@@ -278,7 +318,7 @@ class MotorcycleSpecs {
   }
 
   static String formatInt(int? value, String unit) {
-    if (value == null) return 'null';
+    if (value == null) return '';
 
     if (unit.trim().isEmpty) {
       return value.toString();
@@ -288,13 +328,13 @@ class MotorcycleSpecs {
   }
 
   static String formatBool(bool? value) {
-    if (value == null) return 'null';
+    if (value == null) return '';
 
     return value ? 'Yes' : 'No';
   }
 
   static String formatText(String? value) {
-    if (value == null || value.trim().isEmpty) return 'null';
+    if (value == null || value.trim().isEmpty) return '';
 
     return value;
   }

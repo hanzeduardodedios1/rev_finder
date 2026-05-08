@@ -528,28 +528,38 @@ def fetch_motorcycle_specs(make: str = "", model: str = ""):
         query_params["model"] = combined_query
 
     try:
+        print(f"--- SEARCHING API NINJAS FOR: {final_model or model or combined_query} ---")
         response = requests.get(
             url,
             headers=headers,
             params=query_params,
             timeout=15,
         )
+        print(f"API NINJAS STATUS: {response.status_code}")
         response.raise_for_status()
 
         raw_data = response.json()
+        print(f"FOUND {len(raw_data) if isinstance(raw_data, list) else 1} BIKES")
 
         if not raw_data and combined_query:
+            print(f"--- SEARCHING API NINJAS FOR: {combined_query} ---")
             fallback_response = requests.get(
                 url,
                 headers=headers,
                 params={"model": combined_query},
                 timeout=15,
             )
+            print(f"API NINJAS STATUS: {fallback_response.status_code}")
             fallback_response.raise_for_status()
             raw_data = fallback_response.json()
+            print(f"FOUND {len(raw_data) if isinstance(raw_data, list) else 1} BIKES")
 
         return _enrich_motorcycle_records(raw_data)
 
     except requests.exceptions.RequestException as e:
         print(f"Ninjas Motorcycles API failed: {e}")
+        if "response" in locals() and response is not None:
+            print(response.text)
+        elif "fallback_response" in locals() and fallback_response is not None:
+            print(fallback_response.text)
         return {"error": "Failed to fetch data from external API"}
