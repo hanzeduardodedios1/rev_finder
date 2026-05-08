@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class ApiService {
   // Hugging Face URL
   //final String baseUrl = 'https://hanweirdo-rev-finder-api.hf.space';
-  final String baseUrl = 'http://127.0.0.1:8000';
+  final String baseUrl = 'https://rev-finder-api-ju8zi.ondigitalocean.app';
   
   Future<dynamic> fetchData(String endpoint) async {
     // URL Construction
