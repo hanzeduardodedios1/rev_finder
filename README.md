@@ -5,9 +5,9 @@
 ![Supabase](https://img.shields.io/badge/Supabase-Auth-3FCF8E?logo=supabase&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-8E75B2?logo=google&logoColor=white)
 
-## The Hook
+## About
 
-Motorcycle comparison platform for buyers evaluating two bikes side-by-side. Aggregates specs from Motorcycle API Ninjas, computes normalized power/comfort scores server-side, and generates AI verdicts via Gemini for authenticated users.
+RevFinder is a motorcycle comparison platform for buyers evaluating two bikes side-by-side. A FastAPI backend aggregates specs from API Ninjas, computes normalized power and comfort scores, and generates plain-English AI verdicts via Gemini for authenticated Supabase users.
 
 ## System Architecture
 
